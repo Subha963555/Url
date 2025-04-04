@@ -3,14 +3,10 @@ const express = require('express');
 const jsforce = require('jsforce');
 const Faye = require('faye');
 const WebSocket = require('ws');
+const { exec } = require('child_process'); // ✅ Native command execution
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
-});
-
-const wss = new WebSocket.Server({ server });
 
 const conn = new jsforce.Connection({
   oauth2: {
@@ -20,6 +16,24 @@ const conn = new jsforce.Connection({
     redirectUri: process.env.SF_REDIRECT_URI
   }
 });
+
+const server = app.listen(PORT, () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+
+  const authUrl = conn.oauth2.getAuthorizationUrl({ scope: 'api refresh_token full' });
+  console.log('🌐 Opening Salesforce OAuth login...');
+
+  // ✅ Automatically open the browser using native 'open' command (macOS)
+  exec(`open "${authUrl}"`, (err) => {
+    if (err) {
+      console.error('❌ Failed to open browser:', err.message);
+    } else {
+      console.log('✅ Browser opened successfully!');
+    }
+  });
+});
+
+const wss = new WebSocket.Server({ server });
 
 // Step 1: OAuth redirect
 app.get('/', (req, res) => {
@@ -43,14 +57,13 @@ app.get('/callback', async (req, res) => {
   }
 });
 
-// CDC Subscription Function (with correct Faye usage)
+// CDC Subscription Function
 function subscribeToCDC(connection) {
   const cometd = new Faye.Client(`${connection.instanceUrl}/cometd/58.0`);
 
   cometd.disable('websocket');
   cometd.setHeader('Authorization', `OAuth ${connection.accessToken}`);
 
-  // Listen for errors
   cometd.bind('transport:down', () => {
     console.error('🚨 CometD connection DOWN');
   });
@@ -64,7 +77,7 @@ function subscribeToCDC(connection) {
     console.log('📥 CDC Event Received:');
     console.dir(message, { depth: null });
 
-    // Send to all WebSocket clients
+    // Broadcast to WebSocket clients
     wss.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
         client.send(JSON.stringify(message));
