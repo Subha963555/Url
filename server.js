@@ -10,7 +10,7 @@ const os = require('os');
 function openBrowser(url) {
   let command;
 
-  switch (os.platform()) {
+  switch (process.platform) {
     case 'darwin': // macOS
       command = `open "${url}"`;
       break;
@@ -21,7 +21,7 @@ function openBrowser(url) {
       command = `xdg-open "${url}"`;
       break;
     default:
-      console.error('❌ Unsupported OS. Open this manually:', url);
+      console.error('❌ Unsupported OS. Please manually open:', url);
       return;
   }
 
@@ -33,7 +33,6 @@ function openBrowser(url) {
     }
   });
 }
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
