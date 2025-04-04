@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Live Account CDC</title>
+</head>
+<body>
+  <h2>🟢 WebSocket Connected</h2>
+  <pre id="log"></pre>
+  <script>
+    const log = document.getElementById('log');
+    const ws = new WebSocket('ws://localhost:3000');
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      log.textContent += `📨 Account Change:\n${JSON.stringify(data, null, 2)}\n\n`;
+    };
+
+    ws.onopen = () => {
+      log.textContent += '✅ WebSocket connection established.\n\n';
+    };
+  </script>
+</body>
+</html>
