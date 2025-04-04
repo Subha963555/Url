@@ -3,7 +3,36 @@ const express = require('express');
 const jsforce = require('jsforce');
 const Faye = require('faye');
 const WebSocket = require('ws');
-const { exec } = require('child_process'); // ✅ Native command execution
+const { exec } = require('child_process');
+const os = require('os');
+
+// Cross-platform browser opener
+function openBrowser(url) {
+  let command;
+
+  switch (os.platform()) {
+    case 'darwin': // macOS
+      command = `open "${url}"`;
+      break;
+    case 'win32': // Windows
+      command = `start "" "${url}"`;
+      break;
+    case 'linux': // Linux
+      command = `xdg-open "${url}"`;
+      break;
+    default:
+      console.error('❌ Unsupported OS. Open this manually:', url);
+      return;
+  }
+
+  exec(command, (err) => {
+    if (err) {
+      console.error('❌ Failed to open browser:', err.message);
+    } else {
+      console.log('✅ Browser opened successfully!');
+    }
+  });
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,30 +47,21 @@ const conn = new jsforce.Connection({
 });
 
 const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
-
   const authUrl = conn.oauth2.getAuthorizationUrl({ scope: 'api refresh_token full' });
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
   console.log('🌐 Opening Salesforce OAuth login...');
-
-  // ✅ Automatically open the browser using native 'open' command (macOS)
-  exec(`open "${authUrl}"`, (err) => {
-    if (err) {
-      console.error('❌ Failed to open browser:', err.message);
-    } else {
-      console.log('✅ Browser opened successfully!');
-    }
-  });
+  openBrowser(authUrl);
 });
 
 const wss = new WebSocket.Server({ server });
 
-// Step 1: OAuth redirect
+// Step 1: OAuth Redirect
 app.get('/', (req, res) => {
   const authUrl = conn.oauth2.getAuthorizationUrl({ scope: 'api refresh_token full' });
   res.redirect(authUrl);
 });
 
-// Step 2: Callback from Salesforce
+// Step 2: Callback after Salesforce Login
 app.get('/callback', async (req, res) => {
   try {
     await conn.authorize(req.query.code);
@@ -60,7 +80,6 @@ app.get('/callback', async (req, res) => {
 // CDC Subscription Function
 function subscribeToCDC(connection) {
   const cometd = new Faye.Client(`${connection.instanceUrl}/cometd/58.0`);
-
   cometd.disable('websocket');
   cometd.setHeader('Authorization', `OAuth ${connection.accessToken}`);
 
@@ -77,7 +96,7 @@ function subscribeToCDC(connection) {
     console.log('📥 CDC Event Received:');
     console.dir(message, { depth: null });
 
-    // Broadcast to WebSocket clients
+    // Send message to all WebSocket clients
     wss.clients.forEach(client => {
       if (client.readyState === WebSocket.OPEN) {
         client.send(JSON.stringify(message));
@@ -90,7 +109,7 @@ function subscribeToCDC(connection) {
   });
 }
 
-// WebSocket listener
+// WebSocket Listener
 wss.on('connection', ws => {
   console.log('🟢 WebSocket client connected');
   ws.send(JSON.stringify({
