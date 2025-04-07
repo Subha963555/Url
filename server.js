@@ -90,7 +90,8 @@ function subscribeToCDC(connection) {
     console.log('🔗 CometD connection UP');
   });
 
-  const channel = '/data/AccountChangeEvent';
+  const channel = '/data/MessagingSessionChangeEvent';
+
   cometd.subscribe(channel, message => {
     console.log('📥 CDC Event Received:');
     console.dir(message, { depth: null });
